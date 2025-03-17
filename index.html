@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Список сделок amoCRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-circle {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .loading {
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="container mt-4">
+    <h2 class="mb-4">Список сделок</h2>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Название сделки</th>
+                <th>Бюджет</th>
+                <th>Контакт</th>
+                <th>Телефон</th>
+                <th>Статус задачи</th>
+            </tr>
+        </thead>
+        <tbody id="dealsTableBody">
+            <!-- Здесь будут строки с данными -->
+        </tbody>
+    </table>
+    <script>
+        const refreshToken = 'def50200ab84b893f689888a93e7745bc80454244a573ff278…c426ef685f76045fb5c70eeaae0785daed1eddb3dff0c8821'; // Укажите свой refresh_token
+    const refreshUrl = 'https://dizpethermayday.amocrm.ru/oauth2/access_token'; // URL для получения нового токена
+
+    // Функция для обновления access_token
+    async function refreshAccessToken() {
+        const response = await fetch(refreshUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: 'a4a2a7bb-2500-4954-9e6e-2b8e768b08f6', // Укажите ваш client_id
+                client_secret: 'YzA42bSqAOGHcqiQxM2lIO0yTHSeFObUXarewyOoTHWUnLmCoKkyGoK6Y1VLW91o', // Укажите ваш client_secret
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken
+            })
+        });
+
+        if (!response.ok) {
+            console.error('Ошибка при обновлении токена');
+            return;
+        }
+
+        const data = await response.json();
+        const newAccessToken = data.access_token;
+        const newRefreshToken = data.refresh_token;
+
+        // Сохраняем новые токены
+        localStorage.setItem('access_token', newAccessToken);
+        localStorage.setItem('refresh_token', newRefreshToken);
+
+        console.log('Токен обновлен');
+        return newAccessToken;
+    }
+
+    // Функция для получения access_token
+    function getAccessToken() {
+        const storedToken = localStorage.getItem('access_token');
+        if (!storedToken) {
+            console.error('Токен не найден');
+            return null;
+        }
+        return storedToken;
+    }
+
+    // Проверка на наличие access_token
+    let accessToken = getAccessToken();
+    if (!accessToken) {
+        // Если токен не найден, обновляем его
+        accessToken = await refreshAccessToken();
+    }
+
+    // Пример использования обновленного токена
+    const apiUrl = 'https://dizpethermayday.amocrm.ru/api/v4/leads';
+    async function fetchDeals() {
+        const response = await fetch(apiUrl, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        if (!response.ok) {
+            console.error('Ошибка при получении сделок');
+            return;
+        }
+        const data = await response.json();
+        renderDeals(data._embedded.leads);
+    }
+
+    fetchDeals();
+
+
+        async function fetchDeals() {
+            const response = await fetch(apiUrl, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (!response.ok) {
+                console.error('Ошибка при получении сделок');
+                return;
+            }
+            const data = await response.json();
+            renderDeals(data._embedded.leads);
+        }
+
+        function renderDeals(deals) {
+            const tableBody = document.getElementById('dealsTableBody');
+            tableBody.innerHTML = '';
+
+            deals.forEach(deal => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${deal.id}</td>
+                    <td>${deal.name}</td>
+                    <td>${deal.price}</td>
+                    <td class="loading" colspan="2">Загрузка контакта...</td>
+                    <td></td>
+                `;
+                tableBody.appendChild(row);
+                fetchContact(deal, row);
+            });
+        }
+
+        async function fetchContact(deal, row) {
+            if (!deal._embedded || !deal._embedded.contacts || deal._embedded.contacts.length === 0) {
+                row.cells[3].innerText = 'Нет контакта';
+                row.cells[4].innerText = '-';
+                return;
+            }
+
+            const contactId = deal._embedded.contacts[0].id;
+            const contactResponse = await fetch(`https://dizpethermayday.amocrm.ru/api/v4/contacts/${contactId}`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (!contactResponse.ok) {
+                console.error('Ошибка при получении контакта');
+                return;
+            }
+
+            const contactData = await contactResponse.json();
+            const phone = contactData.custom_fields_values?.find(field => field.field_code === 'PHONE')?.values[0]?.value || '-';
+            row.cells[3].innerText = contactData.name;
+            row.cells[4].innerText = phone;
+            fetchTaskStatus(deal.id, row.cells[5]);
+        }
+
+        async function fetchTaskStatus(dealId, cell) {
+            const taskResponse = await fetch(`https://dizpethermayday.amocrm.ru/api/v4/tasks?filter[entity_id]=${dealId}`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (!taskResponse.ok) {
+                console.error('Ошибка при получении задач');
+                return;
+            }
+
+            const taskData = await taskResponse.json();
+            if (!taskData._embedded || taskData._embedded.tasks.length === 0) {
+                cell.innerHTML = '<span class="status-circle" style="background:red"></span>';
+                return;
+            }
+
+            const task = taskData._embedded.tasks[0];
+            const taskDate = new Date(task.complete_till * 1000);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            let statusColor = 'red';
+            if (taskDate.getTime() === today.getTime()) {
+                statusColor = 'green';
+            } else if (taskDate > today) {
+                statusColor = 'yellow';
+            }
+
+            cell.innerHTML = `<span class="status-circle" style="background:${statusColor}"></span>`;
+        }
+
+        fetchDeals();
+    </script>
+</body>
+</html>
