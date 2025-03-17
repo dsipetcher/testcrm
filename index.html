@@ -36,72 +36,53 @@
         </tbody>
     </table>
     <script>
-        const refreshToken = 'def50200ab84b893f689888a93e7745bc80454244a573ff278…c426ef685f76045fb5c70eeaae0785daed1eddb3dff0c8821'; // Укажите свой refresh_token
-    const refreshUrl = 'https://dizpethermayday.amocrm.ru/oauth2/access_token'; // URL для получения нового токена
+        // Для удобства, можно сохранить access_token в localStorage или переменной
 
-    // Функция для обновления access_token
-    async function refreshAccessToken() {
-        const response = await fetch(refreshUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                client_id: 'a4a2a7bb-2500-4954-9e6e-2b8e768b08f6', // Укажите ваш client_id
-                client_secret: 'YzA42bSqAOGHcqiQxM2lIO0yTHSeFObUXarewyOoTHWUnLmCoKkyGoK6Y1VLW91o', // Укажите ваш client_secret
-                grant_type: 'refresh_token',
-                refresh_token: refreshToken
-            })
-        });
+        let accessToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6IjEyMz…1HirpEXlYQMqUSrJGZtlSIMDOLHSX4QHRsoBDXOF1UI4_45PA';
 
-        if (!response.ok) {
-            console.error('Ошибка при обновлении токена');
-            return;
+        // Если токен не задан, то нужно получить его из localStorage
+        if (!accessToken) {
+            accessToken = localStorage.getItem('access_token');
         }
 
-        const data = await response.json();
-        const newAccessToken = data.access_token;
-        const newRefreshToken = data.refresh_token;
-
-        // Сохраняем новые токены
-        localStorage.setItem('access_token', newAccessToken);
-        localStorage.setItem('refresh_token', newRefreshToken);
-
-        console.log('Токен обновлен');
-        return newAccessToken;
-    }
-
-    // Функция для получения access_token
-    function getAccessToken() {
-        const storedToken = localStorage.getItem('access_token');
-        if (!storedToken) {
-            console.error('Токен не найден');
-            return null;
+        // Если access_token не найден, то обновляем его
+        if (!accessToken) {
+            refreshAccessToken();
         }
-        return storedToken;
-    }
 
-    // Проверка на наличие access_token
-    let accessToken = getAccessToken();
-    if (!accessToken) {
-        // Если токен не найден, обновляем его
-        accessToken = await refreshAccessToken();
-    }
+        const refreshToken = 'def50200ab84b893f689888a93e7745bc80454244a573ff278…c426ef685f76045fb5c70eeaae0785daed1eddb3dff0c8821';
+        const refreshUrl = 'https://dizpethermayday.amocrm.ru/oauth2/access_token'; // URL для получения нового токена
 
-    // Пример использования обновленного токена
-    const apiUrl = 'https://dizpethermayday.amocrm.ru/api/v4/leads';
-    async function fetchDeals() {
-        const response = await fetch(apiUrl, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
-        if (!response.ok) {
-            console.error('Ошибка при получении сделок');
-            return;
+        // Функция для обновления access_token
+        async function refreshAccessToken() {
+            const response = await fetch(refreshUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    client_id: 'a4a2a7bb-2500-4954-9e6e-2b8e768b08f6',
+                    client_secret: 'YzA42bSqAOGHcqiQxM2lIO0yTHSeFObUXarewyOoTHWUnLmCoKkyGoK6Y1VLW91o',
+                    grant_type: 'refresh_token',
+                    refresh_token: refreshToken
+                })
+            });
+
+            if (!response.ok) {
+                console.error('Ошибка при обновлении токена');
+                return;
+            }
+
+            const data = await response.json();
+            accessToken = data.access_token;
+            const newRefreshToken = data.refresh_token;
+
+            // Сохраняем новые токены
+            localStorage.setItem('access_token', accessToken);
+            localStorage.setItem('refresh_token', newRefreshToken);
+
+            console.log('Токен обновлен');
         }
-        const data = await response.json();
-        renderDeals(data._embedded.leads);
-    }
 
-    fetchDeals();
-
+        const apiUrl = 'https://dizpethermayday.amocrm.ru/api/v4/leads';
 
         async function fetchDeals() {
             const response = await fetch(apiUrl, {
@@ -188,5 +169,6 @@
 
         fetchDeals();
     </script>
+
 </body>
 </html>
